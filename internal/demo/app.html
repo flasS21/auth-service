@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Keystone – Profile</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 40px; }
+    .card { max-width: 600px; margin: auto; padding: 30px; border: 1px solid #ddd; }
+    pre { background: #f5f5f5; padding: 15px; }
+    button { padding: 10px 16px; margin-top: 20px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🏢 Company Profile</h1>
+    <p>You are authenticated using a secure server-side session.</p>
+
+    <h3>User Info</h3>
+    <pre id="userInfo">Loading...</pre>
+
+    <button onclick="window.location.href='/dashboard'">
+      Go to Dashboard →
+    </button>
+  </div>
+
+  <script>
+    fetch('/api/me', { credentials: 'include' })
+      .then(res => {
+        if (!res.ok) throw new Error('Unauthorized');
+        return res.json();
+      })
+      .then(data => {
+        document.getElementById('userInfo').textContent =
+          JSON.stringify(data, null, 2);
+      })
+      .catch(() => {
+        document.getElementById('userInfo').textContent =
+          'Not authenticated';
+      });
+  </script>
+</body>
+</html>
