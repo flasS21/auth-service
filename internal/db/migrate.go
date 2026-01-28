@@ -3,39 +3,47 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 )
 
-const keystoneMigration = `
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
-CREATE TABLE IF NOT EXISTS users (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    email text NOT NULL,
-    email_verified boolean NOT NULL DEFAULT false,
-    status text NOT NULL DEFAULT 'active',
-    created_at timestamptz NOT NULL DEFAULT NOW(),
-    updated_at timestamptz NOT NULL DEFAULT NOW()
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique
-ON users (LOWER(email));
-
-CREATE TABLE IF NOT EXISTS identities (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider text NOT NULL,
-    provider_user_id text NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
-    updated_at timestamptz NOT NULL DEFAULT NOW(),
-    CONSTRAINT identities_provider_unique
-        UNIQUE (provider, provider_user_id)
-);
-
-CREATE INDEX IF NOT EXISTS identities_user_id_idx
-ON identities (user_id);
-`
-
+// RunKeystoneMigration executes all SQL migration files
+// present in internal/db/migrations in lexical order.
 func RunKeystoneMigration(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, keystoneMigration)
-	return err
+	migrationsDir := "internal/db/migrations"
+
+	entries, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		return fmt.Errorf("failed to read migrations dir: %w", err)
+	}
+
+	var files []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(entry.Name(), ".sql") {
+			files = append(files, entry.Name())
+		}
+	}
+
+	sort.Strings(files)
+
+	for _, file := range files {
+		path := filepath.Join(migrationsDir, file)
+
+		sqlBytes, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("failed to read migration %s: %w", file, err)
+		}
+
+		if _, err := db.ExecContext(ctx, string(sqlBytes)); err != nil {
+			return fmt.Errorf("failed to execute migration %s: %w", file, err)
+		}
+	}
+
+	return nil
 }
