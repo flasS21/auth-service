@@ -7,6 +7,8 @@ import (
 	"auth-service/internal/auth/handler"
 	"auth-service/internal/auth/provider"
 	"auth-service/internal/auth/provider/google"
+	"auth-service/internal/auth/provider/keycloak"
+
 	"auth-service/internal/auth/resolver"
 	"auth-service/internal/config"
 	"auth-service/internal/middleware"
@@ -29,6 +31,9 @@ func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() erro
 	sessionStore := session.NewRedisStore(infra.Redis.Client)
 	identityResolver := resolver.NewDBResolver(infra.DB)
 
+	// ----------------------------
+	// Google OAuth Provider
+	// ----------------------------
 	googleProvider, err := google.New(
 		ctx,
 		cfg.GoogleClientID,
@@ -39,7 +44,28 @@ func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() erro
 		return nil, nil, err
 	}
 
-	registry := provider.NewRegistry(googleProvider)
+	// =============================
+	// NEW: Keycloak OAuth Provider
+	// =============================
+	keycloakProvider, err := keycloak.New(
+		ctx,
+		cfg.KeycloakIssuer,
+		cfg.KeycloakClientID,
+		cfg.KeycloakRedirectURL,
+		cfg.KeycloakPublicBaseURL,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// ----------------------------
+	// Provider registry
+	// ----------------------------
+	registry := provider.NewRegistry(
+		googleProvider,
+		keycloakProvider, // NEW
+	)
+
 	credentialService := credentials.NewService(infra.DB)
 
 	authHandler := handler.NewHandler(

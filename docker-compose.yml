@@ -1,5 +1,7 @@
 services:
   api:
+    extra_hosts:
+      - "localhost:host-gateway"
     build:
       context: .
       dockerfile: docker/Dockerfile

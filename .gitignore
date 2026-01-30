@@ -22,6 +22,7 @@ dist/
 # misc and doc repos
 # ================================
 /misc
+/docs
 
 # ================================
 # Go workspace cache
