@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 
-	"auth-service/internal/auth/credentials"
 	"auth-service/internal/auth/handler"
 	"auth-service/internal/auth/provider"
 	"auth-service/internal/auth/provider/google"
@@ -63,16 +62,13 @@ func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() erro
 	// ----------------------------
 	registry := provider.NewRegistry(
 		googleProvider,
-		keycloakProvider, // NEW
+		keycloakProvider,
 	)
-
-	credentialService := credentials.NewService(infra.DB)
 
 	authHandler := handler.NewHandler(
 		registry,
 		sessionStore,
 		identityResolver,
-		credentialService,
 	)
 
 	authMiddleware := middleware.NewAuthMiddleware(sessionStore)
@@ -89,10 +85,13 @@ func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() erro
 	authHandler.RegisterRoutes(router)
 
 	// ----------------------------
+	// L E G A C Y - C L E A N - U P
+	// ----------------------------
+
 	// Email / Password auth routes (Phase-6)
 	// ----------------------------
-	router.POST("/auth/login", authHandler.Login)
-	router.POST("/auth/register", authHandler.Register)
+	// router.POST("/auth/login", authHandler.Login)
+	// router.POST("/auth/register", authHandler.Register)
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})

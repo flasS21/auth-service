@@ -50,7 +50,37 @@ func (r *DBResolver) Resolve(
 		return "", err
 	}
 
-	// 2. Create new user
+	// 2. Try email-based linking (existing user, new provider)
+	err = r.db.QueryRowContext(ctx, `
+	SELECT id
+	FROM public.users
+	WHERE email = $1
+`,
+		identity.Email,
+	).Scan(&userID)
+
+	if err == nil {
+		// Link new identity to existing user
+		_, err = r.db.ExecContext(ctx, `
+		INSERT INTO public.identities (user_id, provider, provider_user_id)
+		VALUES ($1, $2, $3)
+	`,
+			userID,
+			identity.Provider,
+			identity.ProviderUserID,
+		)
+		if err != nil {
+			return "", err
+		}
+
+		return userID.String(), nil
+	}
+
+	if err != sql.ErrNoRows {
+		return "", err
+	}
+
+	// 3. Create new user
 	err = r.db.QueryRowContext(ctx, `
 		INSERT INTO public.users (email, email_verified)
 		VALUES ($1, $2)
@@ -64,7 +94,7 @@ func (r *DBResolver) Resolve(
 		return "", err
 	}
 
-	// 3. Create identity mapping
+	// 4. Create identity mapping
 	_, err = r.db.ExecContext(ctx, `
 		INSERT INTO public.identities (user_id, provider, provider_user_id)
 		VALUES ($1, $2, $3)

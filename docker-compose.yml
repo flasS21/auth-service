@@ -1,5 +1,8 @@
 services:
   api:
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     extra_hosts:
       - "localhost:host-gateway"
     build:
@@ -21,7 +24,7 @@ services:
       - "6389:6379"
     volumes:
       - redis_data:/data
-    command: ["redis-server", "--appendonly", "yes"]
+    command: [ "redis-server", "--appendonly", "yes" ]
 
   postgres:
     image: postgres:15
@@ -34,7 +37,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U flasS21 -d keystone_auth"]
+      test: [ "CMD-SHELL", "pg_isready -U flasS21 -d keystone_auth" ]
       interval: 5s
       timeout: 5s
       retries: 5

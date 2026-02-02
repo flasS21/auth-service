@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	"auth-service/internal/auth/credentials"
 	"auth-service/internal/auth/provider"
 	"auth-service/internal/auth/resolver"
 	"auth-service/internal/session"
@@ -13,23 +12,20 @@ import (
 )
 
 type Handler struct {
-	providers         *provider.Registry
-	sessionStore      session.Store
-	resolver          resolver.Resolver
-	credentialService *credentials.Service
+	providers    *provider.Registry
+	sessionStore session.Store
+	resolver     resolver.Resolver
 }
 
 func NewHandler(
 	registry *provider.Registry,
 	sessionStore session.Store,
 	resolver resolver.Resolver,
-	credentialService *credentials.Service,
 ) *Handler {
 	return &Handler{
-		providers:         registry,
-		sessionStore:      sessionStore,
-		resolver:          resolver,
-		credentialService: credentialService,
+		providers:    registry,
+		sessionStore: sessionStore,
+		resolver:     resolver,
 	}
 }
 
