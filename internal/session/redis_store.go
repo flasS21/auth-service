@@ -64,3 +64,22 @@ func (r *RedisStore) Get(ctx context.Context, sessionID string) (*Session, error
 func (r *RedisStore) Delete(ctx context.Context, sessionID string) error {
 	return r.client.Del(ctx, r.key(sessionID)).Err()
 }
+
+func (r *RedisStore) Update(ctx context.Context, s Session) error {
+	if s.SessionID == "" {
+		return fmt.Errorf("session: missing session_id")
+	}
+
+	ttl := time.Until(s.ExpiresAt)
+	if ttl <= 0 {
+		// If expired, delete session instead of extending
+		return r.client.Del(ctx, r.key(s.SessionID)).Err()
+	}
+
+	data, err := json.Marshal(s)
+	if err != nil {
+		return fmt.Errorf("session: failed to marshal: %w", err)
+	}
+
+	return r.client.Set(ctx, r.key(s.SessionID), data, ttl).Err()
+}

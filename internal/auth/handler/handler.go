@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -32,6 +33,11 @@ func NewHandler(
 func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	r.GET("/oauth/login/:provider", h.login)
 	r.GET("/oauth/callback/:provider", h.callback)
+	r.POST("/auth/logout", h.Logout)
+
+	for _, route := range r.Routes() {
+		log.Printf("[ROUTE] %s %s", route.Method, route.Path)
+	}
 }
 
 func (h *Handler) login(c *gin.Context) {
@@ -137,4 +143,33 @@ func (h *Handler) callback(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "authenticated",
 	})
+}
+
+func (h *Handler) Logout(c *gin.Context) {
+
+	log.Printf("[REQ] %s %s", c.Request.Method, c.Request.URL.Path)
+
+	// 1. Read session cookie (same pattern as auth middleware)
+	cookie, err := c.Request.Cookie(session.CookieName)
+	if err == nil && cookie.Value != "" {
+		// 2. Delete session from store (best-effort)
+		_ = h.sessionStore.Delete(c.Request.Context(), cookie.Value)
+		// D E B U G - L O G O U T
+		log.Printf(
+			"[LOGOUT] session_id=%s ip=%s",
+			cookie.Value,
+			c.ClientIP(),
+		)
+	}
+
+	// 3. Clear cookie (must pass options)
+	session.ClearCookie(c.Writer, session.CookieOptions{
+		Path:     "/",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// 4. Idempotent response
+	c.Status(http.StatusNoContent)
 }

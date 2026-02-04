@@ -13,6 +13,10 @@ type userIDContextKeyType struct{}
 
 var userIDKey = userIDContextKeyType{}
 
+const (
+	IdleTimeout = 30 * time.Minute
+)
+
 // UserIDFromContext extracts the authenticated user ID from context.
 func UserIDFromContext(ctx context.Context) (string, bool) {
 	id, ok := ctx.Value(userIDKey).(string)
@@ -50,6 +54,15 @@ func (a *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 			_ = a.Store.Delete(r.Context(), sessionID)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
+		}
+
+		// 3.5 Sliding window: extend session expiry on activity
+		newExpiry := time.Now().Add(IdleTimeout)
+
+		// Extend only if later than current expiry
+		if newExpiry.After(sess.ExpiresAt) {
+			sess.ExpiresAt = newExpiry
+			_ = a.Store.Update(r.Context(), *sess)
 		}
 
 		// 4. Attach user_id to context
