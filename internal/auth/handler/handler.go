@@ -7,6 +7,7 @@ import (
 
 	"auth-service/internal/auth/provider"
 	"auth-service/internal/auth/resolver"
+	"auth-service/internal/logger"
 	"auth-service/internal/session"
 
 	"github.com/gin-gonic/gin"
@@ -76,11 +77,36 @@ func (h *Handler) callback(c *gin.Context) {
 		return
 	}
 
+	// code := c.Query("code")
+	// if code == "" {
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"error": "missing authorization code",
+	// 	})
+	// 	return
+	// }
+
+	errParam := c.Query("error")
+	errDesc := c.Query("error_description")
+
+	// CASE 1: OAuth error (very common during registration)
+	if errParam != "" {
+		logger.Warn("oidc callback returned error", map[string]any{
+			"provider": providerName,
+			"error":    errParam,
+			"desc":     errDesc,
+		})
+
+		// Registration is NOT authentication.
+		// Redirect user to login to start a fresh auth flow.
+		c.Redirect(http.StatusFound, "/login")
+		return
+	}
+
+	// CASE 2: Normal OAuth callback
 	code := c.Query("code")
 	if code == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "missing authorization code",
-		})
+		logger.Error("oidc callback missing code and error", nil)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 

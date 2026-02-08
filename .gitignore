@@ -23,6 +23,8 @@ dist/
 # ================================
 /misc
 /docs
+/kc_backup
+/backup
 
 # ================================
 # Go workspace cache

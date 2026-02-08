@@ -23,3 +23,7 @@ func Fatal(msg string, fields map[string]any) {
 	log.Printf(`{"level":"FATAL","msg":"%s","fields":%v}`, msg, fields)
 	os.Exit(1)
 }
+
+func Warn(msg string, fields map[string]any) {
+	log.Printf(`{"level":"WARN","msg":"%s","fields":%v}`, msg, fields)
+}
