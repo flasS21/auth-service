@@ -11,8 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// DBResolver resolves identities using the database.
-// This is the canonical Keystone resolver.
 type DBResolver struct {
 	db *db.DB
 }
@@ -30,9 +28,20 @@ func (r *DBResolver) Resolve(
 		return "", errors.New("identity is nil")
 	}
 
-	// 1. Try identity lookup (provider + provider_user_id)
+	email := identity.Email
+
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{
+		Isolation: sql.LevelReadCommitted,
+	})
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+
 	var userID uuid.UUID
-	err := r.db.QueryRowContext(ctx, `
+
+	// 1️⃣ Try identity lookup first
+	err = tx.QueryRowContext(ctx, `
 		SELECT user_id
 		FROM public.identities
 		WHERE provider = $1
@@ -43,6 +52,9 @@ func (r *DBResolver) Resolve(
 	).Scan(&userID)
 
 	if err == nil {
+		if err := tx.Commit(); err != nil {
+			return "", err
+		}
 		return userID.String(), nil
 	}
 
@@ -50,21 +62,23 @@ func (r *DBResolver) Resolve(
 		return "", err
 	}
 
-	// 2. Try email-based linking (existing user, new provider)
-	err = r.db.QueryRowContext(ctx, `
-	SELECT id
-	FROM public.users
-	WHERE email = $1
-`,
-		identity.Email,
+	// 2️⃣ Lock user row if exists (email-based linking)
+	err = tx.QueryRowContext(ctx, `
+		SELECT id
+		FROM public.users
+		WHERE email = $1
+		FOR UPDATE
+	`,
+		email,
 	).Scan(&userID)
 
 	if err == nil {
-		// Link new identity to existing user
-		_, err = r.db.ExecContext(ctx, `
-		INSERT INTO public.identities (user_id, provider, provider_user_id)
-		VALUES ($1, $2, $3)
-	`,
+		// Link identity safely
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO public.identities (user_id, provider, provider_user_id)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (provider, provider_user_id) DO NOTHING
+		`,
 			userID,
 			identity.Provider,
 			identity.ProviderUserID,
@@ -73,6 +87,9 @@ func (r *DBResolver) Resolve(
 			return "", err
 		}
 
+		if err := tx.Commit(); err != nil {
+			return "", err
+		}
 		return userID.String(), nil
 	}
 
@@ -80,13 +97,15 @@ func (r *DBResolver) Resolve(
 		return "", err
 	}
 
-	// 3. Create new user
-	err = r.db.QueryRowContext(ctx, `
-		INSERT INTO public.users (email, email_verified)
-		VALUES ($1, $2)
-		RETURNING id
-	`,
-		identity.Email,
+	err = tx.QueryRowContext(ctx,
+		`
+    		INSERT INTO public.users (email, email_verified)
+		    VALUES ($1, $2)
+		    ON CONFLICT (email)
+		    DO UPDATE SET email = EXCLUDED.email
+		    RETURNING id
+			`,
+		email,
 		identity.EmailVerified,
 	).Scan(&userID)
 
@@ -94,10 +113,11 @@ func (r *DBResolver) Resolve(
 		return "", err
 	}
 
-	// 4. Create identity mapping
-	_, err = r.db.ExecContext(ctx, `
+	// 4️⃣ Insert identity safely
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO public.identities (user_id, provider, provider_user_id)
 		VALUES ($1, $2, $3)
+		ON CONFLICT (provider, provider_user_id) DO NOTHING
 	`,
 		userID,
 		identity.Provider,
@@ -105,6 +125,10 @@ func (r *DBResolver) Resolve(
 	)
 
 	if err != nil {
+		return "", err
+	}
+
+	if err := tx.Commit(); err != nil {
 		return "", err
 	}
 

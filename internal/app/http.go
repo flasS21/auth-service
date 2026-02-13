@@ -97,6 +97,12 @@ func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() erro
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
+	protected := router.Group("/api")
+	protected.Use(middleware.GinRequireAuth(authMiddleware))
+	protected.GET("/ping", func(c *gin.Context) {
+		c.JSON(200, gin.H{"ok": true})
+	})
+
 	if PROTECTED_DEMO {
 
 		// ----------------------------

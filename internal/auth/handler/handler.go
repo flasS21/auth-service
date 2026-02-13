@@ -77,14 +77,6 @@ func (h *Handler) callback(c *gin.Context) {
 		return
 	}
 
-	// code := c.Query("code")
-	// if code == "" {
-	// 	c.JSON(http.StatusBadRequest, gin.H{
-	// 		"error": "missing authorization code",
-	// 	})
-	// 	return
-	// }
-
 	errParam := c.Query("error")
 	errDesc := c.Query("error_description")
 
@@ -146,12 +138,28 @@ func (h *Handler) callback(c *gin.Context) {
 		return
 	}
 
-	expiresAt := time.Now().Add(24 * time.Hour)
+	// expiresAt := time.Now().Add(24 * time.Hour)
+	// expiresAt := time.Now().Add(500 * time.Second)
+	// sess := session.Session{
+	// 	SessionID: sessionID,
+	// 	UserID:    userID,
+	// 	ExpiresAt: expiresAt,
+	// }
+
+	// session.SetCookie(c.Writer, sessionID, expiresAt, session.CookieOptions{
+	// 	Secure:   true,
+	// 	SameSite: http.SameSiteLaxMode,
+	// })
+
+	now := time.Now()
+	absoluteExpiry := now.Add(24 * time.Hour)
 
 	sess := session.Session{
-		SessionID: sessionID,
-		UserID:    userID,
-		ExpiresAt: expiresAt,
+		SessionID:         sessionID,
+		UserID:            userID,
+		CreatedAt:         now,
+		AbsoluteExpiresAt: absoluteExpiry,
+		ExpiresAt:         absoluteExpiry,
 	}
 
 	if err := h.sessionStore.Create(c.Request.Context(), sess); err != nil {
@@ -161,10 +169,16 @@ func (h *Handler) callback(c *gin.Context) {
 		return
 	}
 
-	session.SetCookie(c.Writer, sessionID, expiresAt, session.CookieOptions{
+	session.SetCookie(c.Writer, sessionID, absoluteExpiry, session.CookieOptions{
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
+
+	log.Printf("[LOGIN_SUCCESS] user_id=%s sid=%s ip=%s",
+		userID,
+		sessionID,
+		c.ClientIP(),
+	)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": "authenticated",

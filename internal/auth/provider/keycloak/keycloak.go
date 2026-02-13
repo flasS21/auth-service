@@ -14,8 +14,6 @@ import (
 
 const providerName = "keycloak"
 
-// Provider implements OAuth + OIDC authentication against Keycloak.
-// It returns identity facts only; no user/session decisions are made here.
 type Provider struct {
 	oauthConfig *oauth2.Config
 	verifier    *oidc.IDTokenVerifier
