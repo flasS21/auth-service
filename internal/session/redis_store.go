@@ -27,52 +27,6 @@ func (r *RedisStore) key(sessionID string) string {
 	return r.prefix + sessionID
 }
 
-// func (r *RedisStore) Create(ctx context.Context, s Session) error {
-// 	if s.SessionID == "" || s.UserID == "" {
-// 		return fmt.Errorf("session: missing session_id or user_id")
-// 	}
-
-// 	ttl := time.Until(s.ExpiresAt)
-// 	if ttl <= 0 {
-// 		return fmt.Errorf("session: expires_at must be in the future")
-// 	}
-
-// 	data, err := json.Marshal(s)
-// 	if err != nil {
-// 		return fmt.Errorf("session: failed to marshal: %w", err)
-// 	}
-
-// 	return r.client.Set(ctx, r.key(s.SessionID), data, ttl).Err()
-// }
-
-// func (r *RedisStore) Delete(ctx context.Context, sessionID string) error {
-// 	return r.client.Del(ctx, r.key(sessionID)).Err()
-// }
-
-// func (r *RedisStore) Update(ctx context.Context, s Session) error {
-// 	if s.SessionID == "" {
-// 		return fmt.Errorf("session: missing session_id")
-// 	}
-
-// 	ttl := time.Until(s.ExpiresAt)
-// 	if ttl <= 0 {
-// 		// If expired, delete session instead of extending
-// 		return r.client.Del(ctx, r.key(s.SessionID)).Err()
-// 	}
-
-// 	data, err := json.Marshal(s)
-// 	if err != nil {
-// 		return fmt.Errorf("session: failed to marshal: %w", err)
-// 	}
-
-// 	log.Printf("[SESSION_UPDATE] sid=%s new_expiry=%s",
-// 		s.SessionID,
-// 		s.ExpiresAt.UTC(),
-// 	)
-
-// 	return r.client.Set(ctx, r.key(s.SessionID), data, ttl).Err()
-// }
-
 func (r *RedisStore) Create(ctx context.Context, s Session) error {
 	if s.SessionID == "" || s.UserID == "" {
 		return fmt.Errorf("session: missing session_id or user_id")
@@ -174,4 +128,8 @@ func (r *RedisStore) Update(ctx context.Context, s Session) error {
 
 func (r *RedisStore) userKey(userID string) string {
 	return "user_sessions:" + userID
+}
+
+func (r *RedisStore) Client() *redis.Client {
+	return r.client
 }

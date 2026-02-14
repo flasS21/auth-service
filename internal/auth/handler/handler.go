@@ -35,6 +35,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	r.GET("/oauth/login/:provider", h.login)
 	r.GET("/oauth/callback/:provider", h.callback)
 	r.POST("/auth/logout", h.Logout)
+	r.POST("/auth/logout-all", h.LogoutAll)
 
 	for _, route := range r.Routes() {
 		log.Printf("[ROUTE] %s %s", route.Method, route.Path)
@@ -87,9 +88,6 @@ func (h *Handler) callback(c *gin.Context) {
 			"error":    errParam,
 			"desc":     errDesc,
 		})
-
-		// Registration is NOT authentication.
-		// Redirect user to login to start a fresh auth flow.
 		c.Redirect(http.StatusFound, "/login")
 		return
 	}
@@ -138,19 +136,6 @@ func (h *Handler) callback(c *gin.Context) {
 		return
 	}
 
-	// expiresAt := time.Now().Add(24 * time.Hour)
-	// expiresAt := time.Now().Add(500 * time.Second)
-	// sess := session.Session{
-	// 	SessionID: sessionID,
-	// 	UserID:    userID,
-	// 	ExpiresAt: expiresAt,
-	// }
-
-	// session.SetCookie(c.Writer, sessionID, expiresAt, session.CookieOptions{
-	// 	Secure:   true,
-	// 	SameSite: http.SameSiteLaxMode,
-	// })
-
 	now := time.Now()
 	absoluteExpiry := now.Add(24 * time.Hour)
 
@@ -183,6 +168,10 @@ func (h *Handler) callback(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "authenticated",
 	})
+
+	// W E B - T E S T
+	// c.Redirect(http.StatusFound, "/dashboard.html")
+
 }
 
 func (h *Handler) Logout(c *gin.Context) {
@@ -211,5 +200,70 @@ func (h *Handler) Logout(c *gin.Context) {
 	})
 
 	// 4. Idempotent response
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handler) LogoutAll(c *gin.Context) {
+
+	log.Printf("[REQ] %s %s", c.Request.Method, c.Request.URL.Path)
+
+	// Read current session to determine user
+	cookie, err := c.Request.Cookie(session.CookieName)
+	if err != nil || cookie.Value == "" {
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// Load current session to get userID
+	sess, err := h.sessionStore.Get(ctx, cookie.Value)
+	if err != nil || sess == nil {
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	userID := sess.UserID
+
+	// Type assert to RedisStore
+	redisStore, ok := h.sessionStore.(*session.RedisStore)
+	if !ok {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+
+	userKey := "user_sessions:" + userID
+
+	// Get all session IDs
+	sids, err := redisStore.Client().SMembers(ctx, userKey).Result()
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+
+	pipe := redisStore.Client().TxPipeline()
+
+	for _, sid := range sids {
+		pipe.Del(ctx, "session:"+sid)
+	}
+
+	pipe.Del(ctx, userKey)
+
+	_, _ = pipe.Exec(ctx)
+
+	log.Printf("[LOGOUT_ALL] user_id=%s sessions=%d ip=%s",
+		userID,
+		len(sids),
+		c.ClientIP(),
+	)
+
+	// Clear current cookie
+	session.ClearCookie(c.Writer, session.CookieOptions{
+		Path:     "/",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
 	c.Status(http.StatusNoContent)
 }

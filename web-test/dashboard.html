@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Test - Dashboard</title>
+    <link rel="stylesheet" href="/web-test/styles.css">
+    <script src="/web-test/app.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="card dashboard-card">
+            <div class="card-header">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                </div>
+                <h1>Dashboard</h1>
+                <p class="subtitle">Authenticated Test Area</p>
+            </div>
+
+            <!-- Status Section -->
+            <div class="section">
+                <h2>Authentication Status</h2>
+                <div class="status-row">
+                    <span class="status-label">Status:</span>
+                    <span id="auth-status" class="status-badge status-checking">Checking...</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">Session Cookie:</span>
+                    <span id="session-cookie" class="cookie-value">-</span>
+                </div>
+            </div>
+
+            <!-- Cookie Inspector -->
+            <div class="section">
+                <div class="section-header">
+                    <h2>Cookie Inspector</h2>
+                    <button id="refresh-cookies" class="btn-icon" title="Refresh">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 4v6h-6M1 20v-6h6" />
+                            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                        </svg>
+                    </button>
+                </div>
+                <div id="cookie-panel" class="json-panel">
+                    <pre>Loading cookies...</pre>
+                </div>
+            </div>
+
+            <!-- API Test Section -->
+            <div class="section">
+                <h2>API Testing</h2>
+                <div class="button-group">
+                    <button id="call-protected" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            <path d="M9 12l2 2 4-4" />
+                        </svg>
+                        <span>Call Protected API</span>
+                    </button>
+                </div>
+                <div id="api-response" class="response-panel hidden">
+                    <div class="response-header">
+                        <span id="response-status" class="status-code"></span>
+                        <span id="response-time"></span>
+                    </div>
+                    <pre id="response-body"></pre>
+                </div>
+            </div>
+
+            <!-- Logout Section -->
+            <div class="section">
+                <h2>Session Management</h2>
+                <div class="button-group">
+                    <button id="logout-btn" class="btn btn-danger">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                            <path d="M16 17l5-5-5-5" />
+                            <path d="M21 12H9" />
+                        </svg>
+                        <span>Logout</span>
+                    </button>
+                    <button id="logout-all-btn" class="btn btn-warning">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M23 21v-2a4 4 0 00-3-3.87" />
+                            <path d="M16 3.13a4 4 0 010 7.75" />
+                        </svg>
+                        <span>Logout All</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Message Area -->
+            <div id="message-area" class="message-area hidden"></div>
+
+            <!-- Navigation -->
+            <div class="nav-links">
+                <a href="index.html" class="link">← Back to Login</a>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>

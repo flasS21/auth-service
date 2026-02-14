@@ -16,9 +16,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var PROTECTED_DEMO = false
-
 func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() error, error) {
+
 	infra, err := setupInfra(ctx, cfg)
 	if err != nil {
 		return nil, nil, err
@@ -84,69 +83,30 @@ func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() erro
 	// ----------------------------
 	authHandler.RegisterRoutes(router)
 
-	// ----------------------------
-	// L E G A C Y - C L E A N - U P
-	// ----------------------------
-
-	// Email / Password auth routes (Phase-6)
-	// ----------------------------
-	// router.POST("/auth/login", authHandler.Login)
-	// router.POST("/auth/register", authHandler.Register)
-
+	// H E A L T H - C H E C K
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
+	// P R O T E C T E D - R O U T E S
 	protected := router.Group("/api")
 	protected.Use(middleware.GinRequireAuth(authMiddleware))
 	protected.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"ok": true})
 	})
 
-	if PROTECTED_DEMO {
+	// -----------------------------------
+	// Test Frontend (web-test)
+	// -----------------------------------
+	// router.Static("/web-test", "./web-test")
 
-		// ----------------------------
-		// Demo pages (PUBLIC)
-		// ----------------------------
-		router.GET("/", func(c *gin.Context) {
-			c.File("internal/demo/index.html")
-		})
+	// router.GET("/", func(c *gin.Context) {
+	// 	c.File("./web-test/index.html")
+	// })
 
-		router.GET("/app", func(c *gin.Context) {
-			c.File("internal/demo/app.html")
-		})
-
-		// ----------------------------
-		// Demo dashboard (PROTECTED)
-		// ----------------------------
-		router.GET(
-			"/dashboard",
-			middleware.GinRequireAuth(authMiddleware),
-			func(c *gin.Context) {
-				c.File("internal/demo/dashboard.html")
-			},
-		)
-
-		// ----------------------------
-		// API (PROTECTED)
-		// ----------------------------
-		router.GET(
-			"/api/me",
-			middleware.GinRequireAuth(authMiddleware),
-			func(c *gin.Context) {
-				userID, ok := middleware.UserIDFromContext(c.Request.Context())
-				if !ok {
-					c.JSON(401, gin.H{"error": "unauthorized"})
-					return
-				}
-
-				c.JSON(200, gin.H{
-					"user_id": userID,
-					"note":    "session-based auth via redis",
-				})
-			},
-		)
-	}
+	// router.GET("/dashboard.html", func(c *gin.Context) {
+	// 	c.File("./web-test/dashboard.html")
+	// })
 
 	// ----------------------------
 	// Cleanup
@@ -154,4 +114,5 @@ func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() erro
 	return router, func() error {
 		return infra.DB.Close()
 	}, nil
+
 }
