@@ -46,7 +46,8 @@ func (a *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 		)
 
 		if err != nil || cookie.Value == "" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			// http.Error(w, "unauthorized", http.StatusUnauthorized)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
@@ -68,6 +69,14 @@ func (a *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 		}
 
 		// 3. Keystone fix: enforce session expiry
+
+		// now := time.Now()
+		// if now.After(sess.AbsoluteExpiresAt) {
+		// 	_ = a.Store.Delete(r.Context(), sessionID)
+		// 	w.WriteHeader(http.StatusUnauthorized)
+		// 	return
+		// }
+
 		if time.Now().After(sess.ExpiresAt) {
 
 			log.Printf("event=session_expired sid=%s user_id=%s now=%s expires_at=%s",

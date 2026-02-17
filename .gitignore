@@ -25,6 +25,8 @@ dist/
 /docs
 /kc_backup
 /backup
+/keycloak
+/mvp-test
 
 # ================================
 # Go workspace cache

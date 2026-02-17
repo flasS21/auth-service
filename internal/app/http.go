@@ -24,14 +24,12 @@ func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() erro
 	}
 
 	// ----------------------------
-	// Core dependencies
+	// Dependencies
 	// ----------------------------
+
 	sessionStore := session.NewRedisStore(infra.Redis.Client)
 	identityResolver := resolver.NewDBResolver(infra.DB)
 
-	// ----------------------------
-	// Google OAuth Provider
-	// ----------------------------
 	googleProvider, err := google.New(
 		ctx,
 		cfg.GoogleClientID,
@@ -42,9 +40,6 @@ func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() erro
 		return nil, nil, err
 	}
 
-	// =============================
-	// NEW: Keycloak OAuth Provider
-	// =============================
 	keycloakProvider, err := keycloak.New(
 		ctx,
 		cfg.KeycloakIssuer,
@@ -56,9 +51,6 @@ func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() erro
 		return nil, nil, err
 	}
 
-	// ----------------------------
-	// Provider registry
-	// ----------------------------
 	registry := provider.NewRegistry(
 		googleProvider,
 		keycloakProvider,
@@ -75,28 +67,57 @@ func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() erro
 	// ----------------------------
 	// Router
 	// ----------------------------
+
 	router := gin.New()
 	router.Use(gin.Recovery())
 
 	// ----------------------------
-	// OAuth routes
+	// Public Routes
 	// ----------------------------
+
 	authHandler.RegisterRoutes(router)
 
-	// H E A L T H - C H E C K
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// P R O T E C T E D - R O U T E S
-	protected := router.Group("/api")
-	protected.Use(middleware.GinRequireAuth(authMiddleware))
-	protected.GET("/ping", func(c *gin.Context) {
+	router.Static("/mvp-test", "./mvp-test")
+
+	router.GET("/", func(c *gin.Context) {
+		c.File("./mvp-test/index.html")
+	})
+
+	// ----------------------------
+	// Protected API Routes
+	// ----------------------------
+
+	api := router.Group("/api")
+	api.Use(middleware.GinRequireAuth(authMiddleware))
+
+	api.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"ok": true})
 	})
 
+	api.GET("/me", func(c *gin.Context) {
+		userID := c.GetString("userID")
+		c.JSON(200, gin.H{
+			"user_id": userID,
+		})
+	})
+
+	// ----------------------------
+	// Protected Web Routes
+	// ----------------------------
+
+	web := router.Group("/")
+	web.Use(middleware.GinRequireAuth(authMiddleware))
+
+	web.GET("/dashboard", func(c *gin.Context) {
+		c.File("./mvp-test/dashboard.html")
+	})
+
 	// -----------------------------------
-	// Test Frontend (web-test)
+	// Demo Frontend (web-test)
 	// -----------------------------------
 	// router.Static("/web-test", "./web-test")
 
@@ -111,8 +132,8 @@ func setupHTTP(ctx context.Context, cfg config.Config) (*gin.Engine, func() erro
 	// ----------------------------
 	// Cleanup
 	// ----------------------------
+
 	return router, func() error {
 		return infra.DB.Close()
 	}, nil
-
 }

@@ -72,8 +72,6 @@ func (p *Provider) AuthCodeURL(state string, codeChallenge string) string {
 	)
 }
 
-// ExchangeCode exchanges the authorization code and returns a normalized identity.
-// This method MUST NOT create users, sessions, or perform linking logic.
 func (p *Provider) ExchangeCode(
 	ctx context.Context,
 	code string,

@@ -47,9 +47,10 @@ func (h *Handler) login(c *gin.Context) {
 
 	p, err := h.providers.Get(providerName)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "unknown oauth provider",
-		})
+		// c.JSON(http.StatusBadRequest, gin.H{
+		// 	"error": "unknown oauth provider",
+		// })
+		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
 
@@ -65,16 +66,19 @@ func (h *Handler) callback(c *gin.Context) {
 
 	p, err := h.providers.Get(providerName)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "unknown oauth provider",
-		})
+		// c.JSON(http.StatusBadRequest, gin.H{
+		// 	"error": "unknown oauth provider",
+		// })
+		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
 
 	if !validateState(c) {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "invalid state",
-		})
+		// c.JSON(http.StatusUnauthorized, gin.H{
+		// 	"error": "invalid state",
+		// })
+		clearAuthArtifacts(c)
+		h.redirectToKeycloakLogin(c)
 		return
 	}
 
@@ -88,23 +92,31 @@ func (h *Handler) callback(c *gin.Context) {
 			"error":    errParam,
 			"desc":     errDesc,
 		})
-		c.Redirect(http.StatusFound, "/login")
+		// 	c.Redirect(http.StatusFound, "/login")
+		// 	return
+		clearAuthArtifacts(c)
+		h.redirectToKeycloakLogin(c)
 		return
 	}
 
 	// CASE 2: Normal OAuth callback
 	code := c.Query("code")
 	if code == "" {
+		// logger.Error("oidc callback missing code and error", nil)
+		// c.AbortWithStatus(http.StatusBadRequest)
 		logger.Error("oidc callback missing code and error", nil)
-		c.AbortWithStatus(http.StatusBadRequest)
+		clearAuthArtifacts(c)
+		h.redirectToKeycloakLogin(c)
 		return
 	}
 
 	codeVerifier := getPKCEVerifier(c)
 	if codeVerifier == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "missing pkce verifier",
-		})
+		// c.JSON(http.StatusUnauthorized, gin.H{
+		// 	"error": "missing pkce verifier",
+		// })
+		clearAuthArtifacts(c)
+		h.redirectToKeycloakLogin(c)
 		return
 	}
 
@@ -114,25 +126,31 @@ func (h *Handler) callback(c *gin.Context) {
 		codeVerifier,
 	)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "authentication failed",
-		})
+		// c.JSON(http.StatusUnauthorized, gin.H{
+		// 	"error": "authentication failed",
+		// })
+		clearAuthArtifacts(c)
+		h.redirectToKeycloakLogin(c)
 		return
 	}
 
 	userID, err := h.resolver.Resolve(c.Request.Context(), identity)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to resolve user",
-		})
+		// c.JSON(http.StatusInternalServerError, gin.H{
+		// 	"error": "failed to resolve user",
+		// })
+		clearAuthArtifacts(c)
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
 	sessionID, err := session.GenerateID()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to create session",
-		})
+		// c.JSON(http.StatusInternalServerError, gin.H{
+		// 	"error": "failed to create session",
+		// })
+		clearAuthArtifacts(c)
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
@@ -148,14 +166,17 @@ func (h *Handler) callback(c *gin.Context) {
 	}
 
 	if err := h.sessionStore.Create(c.Request.Context(), sess); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to persist session",
-		})
+		// c.JSON(http.StatusInternalServerError, gin.H{
+		// 	"error": "failed to persist session",
+		// })
+		clearAuthArtifacts(c)
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 
 	session.SetCookie(c.Writer, sessionID, absoluteExpiry, session.CookieOptions{
 		Secure:   true,
+		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
 
@@ -165,9 +186,14 @@ func (h *Handler) callback(c *gin.Context) {
 		c.ClientIP(),
 	)
 
-	c.JSON(http.StatusOK, gin.H{
-		"status": "authenticated",
-	})
+	// c.JSON(http.StatusOK, gin.H{
+	// 	"status": "authenticated",
+	// })
+	clearAuthArtifacts(c)
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Redirect(http.StatusFound, "/dashboard")
 
 	// W E B - T E S T
 	// c.Redirect(http.StatusFound, "/dashboard.html")
@@ -266,4 +292,41 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 	})
 
 	c.Status(http.StatusNoContent)
+}
+
+func clearAuthArtifacts(c *gin.Context) {
+
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "pkce_verifier",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (h *Handler) redirectToKeycloakLogin(c *gin.Context) {
+	keycloakProvider, err := h.providers.Get("keycloak")
+	if err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	state := generateState(c)
+	_, codeChallenge := generatePKCE(c)
+
+	authURL := keycloakProvider.AuthCodeURL(state, codeChallenge)
+	c.Redirect(http.StatusFound, authURL)
 }
